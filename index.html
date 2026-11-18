@@ -1,0 +1,1331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Pipeline Explorer</title>
+
+<!-- WHAT THIS DOES: loads Plotly, the library that draws interactive 3D charts with smooth rotation and zooming -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+
+<style>
+  /* WHAT THIS DOES: sets up our sleek modern typography, deep space obsidian tones, and silver accents */
+  :root {
+    --bg-main: #07090e;
+    --bg-card: rgba(18, 22, 31, 0.72);
+    --bg-card-hover: rgba(26, 32, 46, 0.82);
+    --border-silver: rgba(226, 232, 240, 0.12);
+    --border-silver-bright: rgba(226, 232, 240, 0.35);
+    --text-primary: #f8fafc;
+    --text-muted: #94a3b8;
+    --silver-glow: rgba(203, 213, 225, 0.18);
+    --accent-silver: #e2e8f0;
+    --accent-glow: #38bdf8;
+    --accent-orange: #fb923c;
+    --accent-purple: #c084fc;
+    --radius-lg: 16px;
+    --radius-sm: 8px;
+    --transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* WHAT THIS DOES: resets default margins, enables smooth scrolling, and customizes scrollbar */
+  * {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  
+  html {
+    scroll-behavior: smooth;
+    color-scheme: dark;
+  }
+
+  /* WHAT THIS DOES: defines the body styling and background layering */
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Inter", Helvetica, Arial, sans-serif;
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+    padding-bottom: 80px;
+    line-height: 1.6;
+  }
+
+  /* WHAT THIS DOES: creates a fixed dynamic canvas in the background using mathematical polar equations and pixels */
+  #bg-canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.95;
+  }
+
+  /* WHAT THIS DOES: adds subtle metallic silver mesh grid overlay across the whole page */
+  .grid-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 1;
+    background-image: 
+      linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+
+  /* WHAT THIS DOES: wrapper containing all readable and interactive content above the canvas */
+  main {
+    position: relative;
+    z-index: 2;
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 48px 24px;
+  }
+
+  /* WHAT THIS DOES: hero header styling with frosted chrome badges and gradient typography */
+  header {
+    text-align: center;
+    margin-bottom: 48px;
+    padding: 24px 0 10px;
+  }
+
+  .badge-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-silver);
+    padding: 6px 16px;
+    border-radius: 9999px;
+    font-size: 13px;
+    color: var(--accent-silver);
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 18px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .badge-dot {
+    width: 8px;
+    height: 8px;
+    background: #38bdf8;
+    border-radius: 50%;
+    box-shadow: 0 0 10px #38bdf8;
+    animation: pulseGlow 2s infinite ease-in-out;
+  }
+
+  @keyframes pulseGlow {
+    0%, 100% { opacity: 0.5; transform: scale(0.9); }
+    50% { opacity: 1; transform: scale(1.15); }
+  }
+
+  h1 {
+    font-size: clamp(2.4rem, 5vw, 3.8rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, #ffffff 20%, #cbd5e1 55%, #64748b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 14px;
+    text-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .subtitle {
+    font-size: 1.15rem;
+    color: var(--text-muted);
+    max-width: 680px;
+    margin: 0 auto 20px;
+  }
+
+  /* WHAT THIS DOES: scroll indicator showing the background polar morph stage */
+  .polar-indicator-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--border-silver);
+    border-radius: 30px;
+    padding: 6px 18px;
+    font-size: 13px;
+    color: var(--text-muted);
+    backdrop-filter: blur(12px);
+  }
+  .polar-indicator-bar span#shape-name {
+    color: #e2e8f0;
+    font-weight: 600;
+  }
+
+  /* WHAT THIS DOES: glassmorphic card design for each pipeline section with silver borders */
+  section {
+    background: var(--bg-card);
+    border: 1px solid var(--border-silver);
+    border-radius: var(--radius-lg);
+    padding: 32px;
+    margin-bottom: 32px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    transition: var(--transition);
+  }
+
+  section:hover {
+    border-color: var(--border-silver-bright);
+    box-shadow: 0 24px 50px rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  }
+
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border-silver);
+    padding-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .step-num {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #334155, #0f172a);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    font-size: 16px;
+    font-weight: 700;
+    color: #f8fafc;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+
+  h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #f1f5f9;
+  }
+
+  .section-desc {
+    font-size: 0.95rem;
+    color: var(--text-muted);
+    margin-bottom: 20px;
+  }
+
+  /* WHAT THIS DOES: form elements, sleek silver textareas, and inputs */
+  label {
+    display: block;
+    font-weight: 600;
+    font-size: 0.92rem;
+    margin: 18px 0 8px;
+    color: #cbd5e1;
+    letter-spacing: 0.2px;
+  }
+
+  textarea, input[type=text] {
+    width: 100%;
+    box-sizing: border-box;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    background: rgba(10, 14, 22, 0.7);
+    color: #f8fafc;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: var(--transition);
+    resize: vertical;
+  }
+
+  textarea:focus, input[type=text]:focus {
+    border-color: #94a3b8;
+    background: rgba(15, 20, 32, 0.9);
+    box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.2), 0 8px 20px rgba(0,0,0,0.4);
+  }
+
+  /* WHAT THIS DOES: modern silver and chrome action buttons */
+  .btn-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+  }
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 22px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    background: linear-gradient(135deg, #e2e8f0 0%, #94a3b8 100%);
+    color: #090d16;
+    border: none;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3), 0 1px 1px rgba(255, 255, 255, 0.5) inset;
+  }
+
+  button:hover {
+    background: linear-gradient(135deg, #ffffff 0%, #cbd5e1 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(226, 232, 240, 0.25);
+  }
+
+  button:active {
+    transform: translateY(0);
+  }
+
+  .btn-secondary {
+    background: rgba(30, 41, 59, 0.7);
+    color: #e2e8f0;
+    border: 1px solid var(--border-silver);
+    box-shadow: none;
+  }
+
+  .btn-secondary:hover {
+    background: rgba(51, 65, 85, 0.85);
+    border-color: var(--border-silver-bright);
+    color: #ffffff;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+  }
+
+  /* WHAT THIS DOES: slider design for vocabulary truncation */
+  .slider-card {
+    background: rgba(10, 14, 23, 0.5);
+    border: 1px solid var(--border-silver);
+    border-radius: var(--radius-sm);
+    padding: 18px;
+    margin: 18px 0;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 6px;
+    background: #334155;
+    border-radius: 3px;
+    outline: none;
+    margin: 10px 0;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #e2e8f0;
+    cursor: pointer;
+    box-shadow: 0 0 10px rgba(255, 255, 255, 0.6);
+    transition: var(--transition);
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: #ffffff;
+  }
+
+  /* WHAT THIS DOES: tables for displaying vocabulary tokens and sentence similarities */
+  .table-box {
+    max-height: 280px;
+    overflow-y: auto;
+    border: 1px solid var(--border-silver);
+    border-radius: var(--radius-sm);
+    margin-top: 14px;
+    background: rgba(8, 11, 18, 0.6);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 13.5px;
+  }
+
+  th, td {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    padding: 10px 14px;
+    text-align: left;
+  }
+
+  th {
+    background: #111827;
+    position: sticky;
+    top: 0;
+    font-weight: 600;
+    color: #94a3b8;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    font-size: 11px;
+    z-index: 2;
+  }
+
+  tr:hover td {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  /* WHAT THIS DOES: vibrant token chip styling in dark silver cards */
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 16px;
+    padding: 14px;
+    background: rgba(9, 13, 21, 0.65);
+    border: 1px dashed rgba(255, 255, 255, 0.15);
+    border-radius: var(--radius-sm);
+  }
+
+  .chip {
+    border-radius: 8px;
+    padding: 6px 12px;
+    text-align: center;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    transition: transform 0.2s ease;
+  }
+
+  .chip:hover {
+    transform: translateY(-2px) scale(1.04);
+  }
+
+  .chip .text {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+  }
+
+  .chip .id {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: rgba(15, 23, 42, 0.75);
+    margin-top: 1px;
+  }
+
+  .note {
+    font-style: italic;
+    color: #94a3b8;
+    font-size: 0.88rem;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .stats {
+    margin-top: 14px;
+    font-weight: 500;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    font-size: 13.5px;
+    color: #cbd5e1;
+  }
+
+  .stats span {
+    background: rgba(255, 255, 255, 0.05);
+    padding: 4px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .message {
+    margin-top: 12px;
+    color: #f59e0b;
+    font-weight: 500;
+  }
+
+  /* WHAT THIS DOES: styling for the 3D Plot container and interactive control toolbar */
+  .plot-toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(15, 23, 42, 0.8);
+    border: 1px solid var(--border-silver);
+    border-bottom: none;
+    border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    padding: 10px 16px;
+    margin-top: 18px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .plot-toolbar-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #e2e8f0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .plot-tools {
+    display: flex;
+    gap: 8px;
+  }
+
+  .plot-btn {
+    padding: 4px 10px;
+    font-size: 12px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+  }
+
+  .plot-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    color: #ffffff;
+    box-shadow: none;
+    transform: none;
+  }
+
+  #plot {
+    height: 540px;
+    border: 1px solid var(--border-silver);
+    border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+    background: radial-gradient(circle at center, #0e1524 0%, #060910 100%);
+    overflow: hidden;
+  }
+
+  /* WHAT THIS DOES: custom interactive user word trial card */
+  .interactive-try-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.5), rgba(15, 23, 42, 0.7));
+    border: 1px solid rgba(251, 146, 60, 0.3);
+    border-radius: var(--radius-sm);
+    padding: 22px;
+    margin-top: 28px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .interactive-try-card::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(to bottom, #f97316, #fb923c);
+  }
+
+  .interactive-try-card h3 {
+    margin-bottom: 6px;
+    font-size: 1.25rem;
+    color: #fdba74;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  code {
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", monospace;
+    background: rgba(0, 0, 0, 0.4);
+    padding: 3px 8px;
+    border-radius: 4px;
+    color: #38bdf8;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: inline-block;
+    word-break: break-all;
+  }
+
+  /* WHAT THIS DOES: footer styling with subtle credits and links */
+  footer {
+    text-align: center;
+    margin-top: 50px;
+    color: #64748b;
+    font-size: 13px;
+  }
+</style>
+</head>
+
+<body>
+
+<!-- WHAT THIS DOES: background canvas rendering real-time polar math shapes and pixel particles that transform on scroll -->
+<canvas id="bg-canvas"></canvas>
+<div class="grid-overlay"></div>
+
+<main>
+  <!-- WHAT THIS DOES: Top header area explaining what this interactive learning page is -->
+  <header>
+    <div class="badge-tag">
+      <div class="badge-dot"></div>
+      Interactive Teaching Laboratory
+    </div>
+    <h1>LLM Pipeline Explorer</h1>
+    <p class="subtitle">Step inside the black box: explore how natural human sentences convert into mathematical tokens and fly into 3-dimensional vector space.</p>
+    
+    <div class="polar-indicator-bar">
+      <span>Background Geometry:</span>
+      <span id="shape-name">Polar Rose &amp; Quantum Pixel Cloud</span>
+      <span style="opacity:0.4;">|</span>
+      <span id="scroll-pct">Scroll: 0%</span>
+    </div>
+  </header>
+
+  <!-- WHAT THIS DOES: Section 1 - The Tokenizer, how strings are parsed into subwords and IDs with Marvel lore words -->
+  <section id="section-tokenizer">
+    <div class="section-header">
+      <div class="section-title">
+        <div class="step-num">1</div>
+        <h2>Tokenizer &amp; Vocabulary Extraction</h2>
+      </div>
+      <div style="font-size:12px; color:#94a3b8; background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:12px;">Step 1 of 2</div>
+    </div>
+    <p class="section-desc">Before an AI can understand language, it must split text into fundamental tokens. First, supply sample sentences to train our vocabulary dictionary.</p>
+
+    <label for="corpus">Sentences to learn words from (Marvel Training Corpus):</label>
+    <textarea id="corpus" rows="6">Iron Man built a powerful suit of armor.
+Tony Stark is Iron Man.
+Captain America wields a vibranium shield!
+Thor summons thunder with Mjolnir.
+The Avengers assembled to fight Thanos.
+Spider-Man protects the streets of Queens.</textarea>
+
+    <div class="btn-row">
+      <button id="build-vocab-btn">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v3A1.5 1.5 0 0 1 5.5 7h-3A1.5 1.5 0 0 1 1 5.5v-3zM2.5 2a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v3A1.5 1.5 0 0 1 13.5 7h-3A1.5 1.5 0 0 1 9 5.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zM1 10.5A1.5 1.5 0 0 1 2.5 9h3A1.5 1.5 0 0 1 7 10.5v3A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3zm6.5.5A1.5 1.5 0 0 1 10.5 9h3a1.5 1.5 0 0 1 1.5 1.5v3a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-3zm1.5-.5a.5.5 0 0 0-.5.5v3a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-.5-.5h-3z"/></svg>
+        Build vocabulary
+      </button>
+      <button class="btn-secondary" id="reset-corpus-btn">Reset Defaults</button>
+    </div>
+
+    <!-- WHAT THIS DOES: interactive slider to shrink vocabulary and inspect subword token fragmentation -->
+    <div id="vocab-slider-box" class="slider-card" style="display:none;">
+      <label for="vocab-slider">Words kept in vocabulary: <span id="vocab-slider-value" style="color:#38bdf8; font-weight:700;"></span></label>
+      <input type="range" id="vocab-slider" min="1">
+      <p class="note">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm.93-9.412-1 4.705c-.07.34.029.533.304.533.194 0 .487-.07.686-.246l-.088.416c-.287.346-.92.598-1.465.598-.703 0-1.002-.422-.808-1.319l.738-3.468c.064-.293.006-.399-.287-.47l-.451-.081.082-.381 2.29-.287zM8 5.5a1 1 0 1 1 0-2 1 1 0 0 1 0 2z"/></svg>
+        Drag left to shrink the vocabulary. Dropped words are disassembled into smaller subword pieces (e.g., "suits" &rarr; "suit" + "##s") &mdash; watch the token count grow!
+      </p>
+    </div>
+
+    <div id="vocab-output"></div>
+
+    <label for="encode-input" style="margin-top:28px;">Encode any test sentence:</label>
+    <textarea id="encode-input" rows="2">Thor summoned lightning against Thanos and his army.</textarea>
+    
+    <div class="btn-row">
+      <button id="tokenize-btn">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M10.478 1.647a.5.5 0 1 0-.956-.294l-4 13a.5.5 0 0 0 .956.294l4-13zM4.854 4.146a.5.5 0 0 1 0 .708L1.707 8l3.147 3.146a.5.5 0 0 1-.708.708l-3.5-3.5a.5.5 0 0 1 0-.708l3.5-3.5a.5.5 0 0 1 .708 0zm6.292 0a.5.5 0 0 0 0 .708L14.293 8l-3.147 3.146a.5.5 0 0 0 .708.708l3.5-3.5a.5.5 0 0 0 0-.708l-3.5-3.5a.5.5 0 0 0-.708 0z"/></svg>
+        Tokenize
+      </button>
+    </div>
+    <div id="token-output"></div>
+  </section>
+
+  <!-- WHAT THIS DOES: Section 2 - Turning sentence tokens into high-dimensional vectors and visualizing in 3D (Batman & Joker) -->
+  <section id="section-embeddings">
+    <div class="section-header">
+      <div class="section-title">
+        <div class="step-num">2</div>
+        <h2>Embeddings &amp; 3D Vector Workspace</h2>
+      </div>
+      <div style="font-size:12px; color:#94a3b8; background:rgba(255,255,255,0.05); padding:4px 10px; border-radius:12px;">Step 2 of 2</div>
+    </div>
+    <p class="section-desc">Tokens are converted into mathematical vectors (lists of numbers). We project these vectors into 3D using Principal Component Analysis (PCA) so you can interactively rotate and examine their geometric relationships.</p>
+
+    <label for="sentences">Corpus Sentences for 3D Clustering (Batman &amp; Joker Lore):</label>
+    <textarea id="sentences" rows="8">Batman patrols Gotham City from the dark shadows.
+The Dark Knight watches over Gotham from high rooftops.
+Bruce Wayne drives the armored Batmobile into the night.
+The Caped Crusader protects the innocent citizens of Gotham.
+The Joker unleashes chaos and dangerous laughter across the city.
+The Clown Prince of Crime loves playing twisted mind games.
+Joker spreads deadly laughing gas throughout Gotham Square.
+A sinister grin appeared on the pale face of the Joker.</textarea>
+
+    <div class="btn-row">
+      <button id="embed-btn">
+        <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M6 12.5a.5.5 0 0 0 .5.5h8a.5.5 0 0 0 .5-.5v-9a.5.5 0 0 0-.5-.5h-8a.5.5 0 0 0-.5.5v9zM2.5 15h11a1.5 1.5 0 0 0 1.5-1.5v-11A1.5 1.5 0 0 0 13.5 1h-11A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15z"/></svg>
+        Embed and Plot in 3D
+      </button>
+      <button class="btn-secondary" id="sample-batman-btn">Load Gotham Rogues</button>
+    </div>
+
+    <div id="embed-status" class="message"></div>
+
+    <!-- WHAT THIS DOES: 3D plot container with helper rotation/view toolbar -->
+    <div class="plot-toolbar">
+      <div class="plot-toolbar-title">
+        <svg width="15" height="15" fill="#38bdf8" viewBox="0 0 16 16"><path d="M8 1a2 2 0 0 1 2 2v2H6V3a2 2 0 0 1 2-2zm3 4V3a3 3 0 1 0-6 0v2H3.5A1.5 1.5 0 0 0 2 6.5v7A1.5 1.5 0 0 0 3.5 15h9a1.5 1.5 0 0 0 1.5-1.5v-7A1.5 1.5 0 0 0 12.5 5H11z"/></svg>
+        Interactive 3D Semantic Vector Space (PCA Coordinates)
+      </div>
+      <div class="plot-tools">
+        <button class="plot-btn" id="btn-view-top">Top View</button>
+        <button class="plot-btn" id="btn-view-side">Side View</button>
+        <button class="plot-btn" id="btn-reset-cam">Reset Orbit</button>
+      </div>
+    </div>
+    <div id="plot"></div>
+    <div id="pairs-output" style="margin-top:20px;"></div>
+
+    <!-- WHAT THIS DOES: Interactive input allowing students to enter custom phrases and watch them take flight in the 3D space -->
+    <div class="interactive-try-card">
+      <h3>
+        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.5 7.5a.5.5 0 0 1 0 1H5.707l2.147 2.146a.5.5 0 0 1-.708.708l-3-3a.5.5 0 0 1 0-.708l3-3a.5.5 0 1 1 .708.708L5.707 7.5H11.5z"/></svg>
+        Try Your Own Word or Sentence
+      </h3>
+      <p style="font-size:13.5px; color:#cbd5e1; margin-bottom:12px;">See your custom text go through tokenization, high-dimensional vectorization, and appear as a highlighted bright glowing marker in the 3D scatter plot!</p>
+      <input type="text" id="new-word" placeholder="e.g. Why so serious?, or: The Bat-Signal illuminated the dark clouds.">
+      <div class="btn-row">
+        <button id="add-word-btn" style="background: linear-gradient(135deg, #fb923c, #f97316); color:#fff;">
+          Tokenize, Embed &amp; Add to Plot
+        </button>
+      </div>
+      <div id="new-word-output"></div>
+    </div>
+  </section>
+
+  <!-- WHAT THIS DOES: footer with educational note -->
+  <footer>
+    <p>LLM Pipeline Explorer &bull; Designed with Pure JavaScript &amp; HTML5 Canvas &bull; Polar Coordinates &amp; Mathematical Space</p>
+  </footer>
+</main>
+
+<script>
+// =====================================================================
+// BACKGROUND VISUAL: POLAR EQUATIONS & PIXEL PARTICLES
+// =====================================================================
+
+// WHAT THIS DOES: sets up our dynamic background canvas with polar coordinate curves and pixel particles that transform on scroll
+const bgCanvas = document.getElementById("bg-canvas");
+const bgCtx = bgCanvas.getContext("2d");
+let canvasWidth, canvasHeight;
+
+// WHAT THIS DOES: handles window resizing for the high-DPI canvas
+function resizeCanvas() {
+  canvasWidth = window.innerWidth;
+  canvasHeight = window.innerHeight;
+  bgCanvas.width = canvasWidth * window.devicePixelRatio;
+  bgCanvas.height = canvasHeight * window.devicePixelRatio;
+  bgCtx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+window.addEventListener("resize", resizeCanvas);
+resizeCanvas();
+
+// WHAT THIS DOES: pixel particles constellation that drift smoothly in polar and cartesian space
+const NUM_PIXELS = 130;
+const pixelParticles = [];
+for (let i = 0; i < NUM_PIXELS; i++) {
+  pixelParticles.push({
+    r: Math.random() * 450 + 50,
+    theta: Math.random() * Math.PI * 2,
+    speed: (Math.random() * 0.003 + 0.001) * (Math.random() > 0.5 ? 1 : -1),
+    size: Math.random() * 2.2 + 1,
+    alpha: Math.random() * 0.5 + 0.2,
+    pulseSpeed: Math.random() * 0.04 + 0.02
+  });
+}
+
+// WHAT THIS DOES: tracks scroll progress (0 to 1) to seamlessly morph polar shapes as the user moves down the page
+let scrollProgress = 0;
+let currentScrollNorm = 0;
+
+window.addEventListener("scroll", () => {
+  const maxScroll = document.documentElement.scrollHeight - window.innerHeight;
+  scrollProgress = maxScroll > 0 ? window.scrollY / maxScroll : 0;
+  
+  // update the header indicator text
+  const pctElem = document.getElementById("scroll-pct");
+  const shapeElem = document.getElementById("shape-name");
+  if (pctElem) pctElem.textContent = `Scroll: ${Math.round(scrollProgress * 100)}%`;
+  
+  if (shapeElem) {
+    if (scrollProgress < 0.25) shapeElem.textContent = "Polar Rose (n=4 Petals) & Matrix Pixels";
+    else if (scrollProgress < 0.55) shapeElem.textContent = "Cardioid & Limaçon Harmonic Web";
+    else if (scrollProgress < 0.8) shapeElem.textContent = "Hypotrochoid & Vector Torus";
+    else shapeElem.textContent = "Quantum Fermat Spiral & Semantic Node Lattice";
+  }
+});
+
+let animTime = 0;
+
+// WHAT THIS DOES: animation loop that renders the polar shape and pixel cloud every frame
+function renderBackground() {
+  animTime += 0.016;
+  // smoothly interpolate scroll to prevent jarring jumps
+  currentScrollNorm += (scrollProgress - currentScrollNorm) * 0.08;
+
+  bgCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+
+  // center of the polar coordinate system
+  const cx = canvasWidth * 0.5;
+  const cy = canvasHeight * 0.5;
+
+  // 1. Draw polar mathematical curve
+  // r(theta) changes depending on scroll:
+  // Stage 1 (top): Polar rose r = a * cos(k * theta)
+  // Stage 2 (mid): Limaçon / Cardioid r = a * (1 + cos(theta))
+  // Stage 3 (lower): Hypotrochoid / Spiral
+  const maxRadius = Math.min(canvasWidth, canvasHeight) * 0.42;
+
+  // k parameter morphs based on scroll
+  const kParam = 2 + currentScrollNorm * 4.5; 
+  const morphMix = currentScrollNorm; 
+
+  bgCtx.save();
+  bgCtx.translate(cx, cy);
+
+  // draw multiple glowing rings of polar lines
+  for (let ring = 0; ring < 3; ring++) {
+    const ringScale = 1 - ring * 0.18;
+    const ringRot = animTime * 0.15 * (ring % 2 === 0 ? 1 : -1) + ring * 0.5;
+
+    bgCtx.beginPath();
+    const totalPoints = 360;
+    for (let i = 0; i <= totalPoints; i++) {
+      const theta = (i / totalPoints) * Math.PI * 2 * (1 + Math.floor(currentScrollNorm * 2));
+      
+      // Calculate polar radius r using a blend of rose curve, cardioid, and spiral
+      const rRose = maxRadius * Math.cos(kParam * theta);
+      const rCardioid = maxRadius * 0.85 * (1 + 0.6 * Math.sin(theta + animTime * 0.5));
+      const rSpiral = maxRadius * 0.7 * (0.6 + 0.4 * Math.sin(3 * theta + animTime));
+
+      let r = (1 - morphMix) * rRose + morphMix * (ring % 2 === 0 ? rCardioid : rSpiral);
+      r = Math.abs(r) * ringScale;
+
+      const px = r * Math.cos(theta + ringRot);
+      const py = r * Math.sin(theta + ringRot);
+
+      if (i === 0) bgCtx.moveTo(px, py);
+      else bgCtx.lineTo(px, py);
+    }
+
+    // metallic silver and subtle icy blue glow
+    const alpha = (0.08 - ring * 0.02) + Math.sin(animTime + ring) * 0.015;
+    bgCtx.strokeStyle = ring === 0 ? `rgba(226, 232, 240, ${alpha * 2.2})` : `rgba(56, 189, 248, ${alpha * 1.5})`;
+    bgCtx.lineWidth = ring === 0 ? 1.5 : 1;
+    bgCtx.stroke();
+  }
+
+  // 2. Render pixel particles moving in polar orbits
+  for (let i = 0; i < pixelParticles.length; i++) {
+    const p = pixelParticles[i];
+    p.theta += p.speed;
+
+    // convert polar (r, theta) to cartesian (x, y)
+    const effectiveRadius = p.r * (0.8 + 0.3 * currentScrollNorm);
+    const px = effectiveRadius * Math.cos(p.theta);
+    const py = effectiveRadius * Math.sin(p.theta);
+
+    // pulsating pixel effect
+    const pulse = Math.sin(animTime * 3 + i) * 0.3 + 0.7;
+    const alpha = p.alpha * pulse * (0.4 + currentScrollNorm * 0.4);
+
+    bgCtx.fillStyle = (i % 7 === 0) ? `rgba(56, 189, 248, ${alpha})` : `rgba(241, 245, 249, ${alpha})`;
+    
+    // draw as square high-tech pixels
+    bgCtx.fillRect(px - p.size / 2, py - p.size / 2, p.size, p.size);
+
+    // connect close neighboring pixels with subtle web filaments
+    if (i < 35) {
+      for (let j = i + 1; j < 35; j++) {
+        const pj = pixelParticles[j];
+        const pjx = pj.r * Math.cos(pj.theta);
+        const pjy = pj.r * Math.sin(pj.theta);
+        const dist = Math.hypot(px - pjx, py - pjy);
+        if (dist < 90) {
+          bgCtx.strokeStyle = `rgba(203, 213, 225, ${(1 - dist / 90) * 0.08})`;
+          bgCtx.lineWidth = 0.6;
+          bgCtx.beginPath();
+          bgCtx.moveTo(px, py);
+          bgCtx.lineTo(pjx, pjy);
+          bgCtx.stroke();
+        }
+      }
+    }
+  }
+
+  bgCtx.restore();
+  requestAnimationFrame(renderBackground);
+}
+requestAnimationFrame(renderBackground);
+
+
+// =====================================================================
+// PART 1: TOKENIZER & VOCABULARY ENGINE (MARVEL WORDINGS)
+// =====================================================================
+
+// WHAT THIS DOES: holds the vocabulary mapping from word or subword string to its integer ID
+let vocab = null;
+let sortedWords = [];   // all words from the learning sentences, most frequent first
+let wordCounts = {};    // word -> how many times it appears
+let subwordPieces = []; // small pieces used to build unknown words, e.g. "##s", "##ing", "c", "##a"
+
+// WHAT THIS DOES: list of common English subword endings, where "##" denotes continuation
+const COMMON_ENDINGS = ["##s", "##es", "##ed", "##ing", "##er", "##ly", "##y"];
+
+// WHAT THIS DOES: turns raw sentences into an array of clean word tokens
+function splitIntoWords(text) {
+  let t = text.toLowerCase();                  // 1. convert to lowercase
+  t = t.replace(/([.,!?'])/g, " $1 ");         // 2. insert spacing around punctuation
+  return t.split(/\s+/).filter(w => w !== ""); // 3. split on whitespace
+}
+
+// WHAT THIS DOES: builds the vocabulary from the user's provided training sentences
+function buildVocabulary() {
+  const words = splitIntoWords(document.getElementById("corpus").value);
+
+  // 4. count how often each word appears
+  wordCounts = {};
+  for (const w of words) {
+    wordCounts[w] = (wordCounts[w] || 0) + 1;
+  }
+  // sort words: most frequent first
+  sortedWords = Object.keys(wordCounts).sort((a, b) => wordCounts[b] - wordCounts[a]);
+
+  // subword pieces: common endings + every letter seen (as a start piece "c" and a joining piece "##c")
+  const letters = [...new Set(words.join("").replace(/[^a-z]/g, ""))].sort();
+  subwordPieces = [...COMMON_ENDINGS, ...letters, ...letters.map(ch => "##" + ch)];
+
+  // set up the slider: starts at "keep every word"
+  const slider = document.getElementById("vocab-slider");
+  slider.max = sortedWords.length;
+  slider.value = sortedWords.length;
+  document.getElementById("vocab-slider-box").style.display = "block";
+
+  applyVocabSize(sortedWords.length);
+}
+
+// WHAT THIS DOES: keeps only the top N words, assigns unique IDs, and outputs the vocabulary table
+function applyVocabSize(n) {
+  const kept = sortedWords.slice(0, n);
+  document.getElementById("vocab-slider-value").textContent = `${n} of ${sortedWords.length} words`;
+
+  // 5. assign IDs: ID 0 is reserved for [UNK], then whole words, then subword pieces
+  vocab = { "[UNK]": 0 };
+  let rows = "<tr><td>0</td><td><code>[UNK]</code></td><td>&mdash;</td></tr>";
+  kept.forEach(w => {
+    vocab[w] = Object.keys(vocab).length;
+    rows += `<tr><td>${vocab[w]}</td><td><code>${escapeHtml(w)}</code></td><td>${wordCounts[w]}</td></tr>`;
+  });
+  subwordPieces.forEach(p => {
+    if (p in vocab) return;            // a letter like "a" may already be a whole word
+    vocab[p] = Object.keys(vocab).length;
+    rows += `<tr><td>${vocab[p]}</td><td><code>${escapeHtml(p)}</code></td><td style="color:#94a3b8; font-style:italic;">subword</td></tr>`;
+  });
+
+  // display the statistics and vocabulary table
+  document.getElementById("vocab-output").innerHTML =
+    `<p class="stats">
+       <span>Active Vocabulary: <strong>${Object.keys(vocab).length}</strong> tokens</span>
+       <span>Kept Whole Words: <strong>${kept.length}</strong></span>
+       <span>Subwords &amp; Specials: <strong>${Object.keys(vocab).length - kept.length}</strong></span>
+     </p>
+     <div class="table-box"><table>
+       <tr><th>ID</th><th>Token</th><th>Corpus Frequency</th></tr>${rows}
+     </table></div>`;
+}
+
+// WHAT THIS DOES: splits one unknown word into the longest known pieces (subword tokenization)
+function splitIntoSubwords(word) {
+  const pieces = [];
+  let start = 0;
+  while (start < word.length) {
+    let found = null;
+    for (let end = word.length; end > start; end--) {
+      let piece = word.slice(start, end);
+      if (start > 0) piece = "##" + piece;   // pieces after the first one get "##"
+      if (piece in vocab) { found = piece; break; }
+    }
+    if (found === null) return [{ text: "[UNK]", id: 0, unknown: true }];
+    pieces.push({ text: found, id: vocab[found], unknown: true });
+    start += found.replace("##", "").length;
+  }
+  return pieces;
+}
+
+// WHAT THIS DOES: turns any sentence into a list of token objects with {text, id}
+function encode(text) {
+  const tokens = [];
+  for (const word of splitIntoWords(text)) {
+    if (word in vocab) {
+      tokens.push({ text: word, id: vocab[word] });   // known word: one token
+    } else {
+      tokens.push(...splitIntoSubwords(word));        // unknown word: broken into subword pieces
+    }
+  }
+  return tokens;
+}
+
+// WHAT THIS DOES: generates a consistent luminous pastel chip color from a token's numerical ID
+function colorForId(id) {
+  const hue = (id * 53) % 360;
+  return `hsl(${hue}, 75%, 78%)`;
+}
+
+// WHAT THIS DOES: runs when clicking Tokenize to render chips, stats, and subword alerts
+function tokenizeSentence() {
+  if (vocab === null) buildVocabulary();
+  const text = document.getElementById("encode-input").value;
+  const tokens = encode(text);
+  const chips = renderChips(tokens);
+
+  const hasUnknown = tokens.some(t => t.unknown);
+  const charCount = text.length;
+  const ratio = tokens.length ? (charCount / tokens.length).toFixed(2) : "0";
+
+  document.getElementById("token-output").innerHTML =
+    `${chips}
+     ${hasUnknown ? '<p class="note"><svg width="14" height="14" fill="#fb923c" viewBox="0 0 16 16"><path d="M7.938 2.016A.13.13 0 0 1 8.002 2a.13.13 0 0 1 .063.016.146.146 0 0 1 .054.057l6.857 11.667c.036.06.035.124.002.183a.163.163 0 0 1-.054.06.116.116 0 0 1-.066.017H1.146a.115.115 0 0 1-.066-.017.163.163 0 0 1-.054-.06.176.176 0 0 1 .002-.183L7.884 2.073a.147.147 0 0 1 .054-.057zm1.044-.45a1.13 1.13 0 0 0-1.96 0L.165 13.233c-.457.778.091 1.767.98 1.767h13.713c.889 0 1.438-.99.98-1.767L8.982 1.566z"/><path d="M7.002 12a1 1 0 1 1 2 0 1 1 0 0 1-2 0zM7.1 5.995a.905.905 0 1 1 1.8 0l-.35 3.507a.552.552 0 0 1-1.1 0z"/></svg> Words not in the vocabulary are split into the longest known pieces (subwords) with "##". If unmatched, it defaults to [UNK].</p>' : ""}
+     <p class="stats">
+       <span>Characters: <strong>${charCount}</strong></span>
+       <span>Tokens Generated: <strong>${tokens.length}</strong></span>
+       <span>Efficiency: <strong>${ratio}</strong> chars / token</span>
+     </p>`;
+}
+
+// WHAT THIS DOES: generates HTML badges for all tokens with smooth styling
+function renderChips(tokens) {
+  let chips = "";
+  for (const t of tokens) {
+    chips += `<div class="chip" style="background:${colorForId(t.id)}">
+                <div class="text">${escapeHtml(t.text)}</div>
+                <div class="id">#${t.id}</div>
+              </div>`;
+  }
+  return `<div class="chips">${chips}</div>`;
+}
+
+// WHAT THIS DOES: prevents HTML injection when displaying strings
+function escapeHtml(s) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+
+// =====================================================================
+// PART 2: EMBEDDINGS & MATHEMATICAL PCA ENGINE (BATMAN & JOKER LORE)
+// =====================================================================
+
+// WHAT THIS DOES: quick hash function mapping a string chunk to a 32-bit positive integer
+function hashString(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  }
+  return h;
+}
+
+// WHAT THIS DOES: normalizes any vector to unit length 1 (L2 normalization)
+function normalize(v) {
+  const len = Math.sqrt(v.reduce((sum, x) => sum + x * x, 0)) || 1;
+  return v.map(x => x / len);
+}
+
+// WHAT THIS DOES: generates an embedding vector using character trigram frequency hashing across 64 dimensions
+function spellingVector(sentence) {
+  const s = sentence.toLowerCase();
+  const v = new Array(64).fill(0);
+  for (let i = 0; i + 3 <= s.length; i++) {
+    const trigram = s.slice(i, i + 3);
+    v[hashString(trigram) % 64] += 1;
+  }
+  return normalize(v);
+}
+
+// WHAT THIS DOES: calculates vector dot product
+function dot(a, b) {
+  let sum = 0;
+  for (let i = 0; i < a.length; i++) sum += a[i] * b[i];
+  return sum;
+}
+
+// WHAT THIS DOES: computes cosine similarity between two vectors (1 = identical direction, 0 = orthogonal)
+function similarity(a, b) {
+  return dot(a, b) / (Math.sqrt(dot(a, a)) * Math.sqrt(dot(b, b)) || 1);
+}
+
+// WHAT THIS DOES: Principal Component Analysis (PCA) to mathematically reduce 64-D vectors into 3-D coordinates (x, y, z)
+function pcaTo3D(vectors) {
+  const n = vectors.length, d = vectors[0].length;
+
+  // Step 1: subtract the mean of each dimension (center the dataset)
+  const mean = new Array(d).fill(0);
+  for (const v of vectors) for (let j = 0; j < d; j++) mean[j] += v[j] / n;
+  const X = vectors.map(v => v.map((x, j) => x - mean[j]));
+
+  // Step 2: compute the covariance matrix C (d x d)
+  const C = [];
+  for (let a = 0; a < d; a++) {
+    C.push(new Array(d).fill(0));
+    for (let b = 0; b < d; b++) {
+      for (let i = 0; i < n; i++) C[a][b] += X[i][a] * X[i][b];
+      C[a][b] /= (n - 1);
+    }
+  }
+
+  // Step 3: extract top 3 principal eigenvectors using power iteration with deflation
+  const components = [];
+  for (let k = 0; k < 3; k++) {
+    let v = normalize(Array.from({ length: d }, (_, j) => Math.sin(j + 1 + k)));
+    for (let iter = 0; iter < 50; iter++) {
+      v = normalize(C.map(row => dot(row, v)));
+    }
+    const lambda = dot(v, C.map(row => dot(row, v)));
+    components.push(v);
+    
+    // deflation: subtract this component's variance before finding the next
+    for (let a = 0; a < d; a++)
+      for (let b = 0; b < d; b++) C[a][b] -= lambda * v[a] * v[b];
+  }
+
+  // Step 4: project each sentence vector onto the 3 principal directions -> [PC1, PC2, PC3]
+  return X.map(x => components.map(c => dot(x, c)));
+}
+
+// WHAT THIS DOES: renders the rich 3D scatter plot with Plotly using our obsidian/silver aesthetic
+function drawPlot(points, sentences) {
+  // distinct vibrant colors for normal sentences vs custom user sentence
+  const colors = sentences.map(s => {
+    if (s === userText) return "#f97316"; // bright orange for user phrase
+    // subtle semantic hint: Batman sentences in cool cyan/silver, Joker sentences in purple/green
+    const lower = s.toLowerCase();
+    if (lower.includes("joker") || lower.includes("clown") || lower.includes("grin") || lower.includes("laughter")) {
+      return "#c084fc"; // purple accent for Joker
+    }
+    return "#38bdf8"; // bright cyan for Batman / Gotham
+  });
+
+  const sizes = sentences.map(s => s === userText ? 12 : 7);
+
+  const trace = {
+    type: "scatter3d",
+    mode: "markers+text",
+    x: points.map(p => p[0]),
+    y: points.map(p => p[1]),
+    z: points.map(p => p[2]),
+    text: sentences.map(s => s.length > 22 ? s.slice(0, 20) + "…" : s),
+    textfont: {
+      color: "#e2e8f0",
+      family: "-apple-system, system-ui, sans-serif",
+      size: 11
+    },
+    hovertext: sentences.map((s, i) => `<b>${escapeHtml(s)}</b><br>Vector: [${points[i].map(v => v.toFixed(2)).join(", ")}]`),
+    hoverinfo: "text",
+    textposition: "top center",
+    marker: {
+      size: sizes,
+      color: colors,
+      opacity: 0.95,
+      line: {
+        color: "#ffffff",
+        width: 1
+      }
+    }
+  };
+
+  const layout = {
+    paper_bgcolor: "rgba(0,0,0,0)",
+    plot_bgcolor: "rgba(0,0,0,0)",
+    margin: { l: 0, r: 0, t: 0, b: 0 },
+    scene: {
+      xaxis: { 
+        title: "PC 1", 
+        color: "#94a3b8", 
+        gridcolor: "rgba(255,255,255,0.08)",
+        zerolinecolor: "rgba(56, 189, 248, 0.4)"
+      },
+      yaxis: { 
+        title: "PC 2", 
+        color: "#94a3b8", 
+        gridcolor: "rgba(255,255,255,0.08)",
+        zerolinecolor: "rgba(56, 189, 248, 0.4)"
+      },
+      zaxis: { 
+        title: "PC 3", 
+        color: "#94a3b8", 
+        gridcolor: "rgba(255,255,255,0.08)",
+        zerolinecolor: "rgba(56, 189, 248, 0.4)"
+      },
+      camera: {
+        eye: { x: 1.5, y: 1.5, z: 1.2 }
+      }
+    }
+  };
+
+  const config = {
+    responsive: true,
+    displayModeBar: false // custom toolbar handles quick perspective changes
+  };
+
+  Plotly.newPlot("plot", [trace], layout, config);
+}
+
+// WHAT THIS DOES: calculates and presents the top 5 highest similarity sentence pairs in an organized table
+function showClosestPairs(vectors, sentences) {
+  const pairs = [];
+  for (let i = 0; i < vectors.length; i++)
+    for (let j = i + 1; j < vectors.length; j++)
+      pairs.push({ a: sentences[i], b: sentences[j], score: similarity(vectors[i], vectors[j]) });
+  pairs.sort((p, q) => q.score - p.score);
+
+  let rows = "";
+  for (const p of pairs.slice(0, 5)) {
+    const pct = Math.round(p.score * 100);
+    rows += `<tr>
+      <td><strong>${escapeHtml(p.a)}</strong></td>
+      <td><strong>${escapeHtml(p.b)}</strong></td>
+      <td><span style="color:#38bdf8; font-weight:700;">${p.score.toFixed(3)}</span> (${pct}%)</td>
+    </tr>`;
+  }
+  document.getElementById("pairs-output").innerHTML =
+    `<h3 style="margin-bottom:10px; font-size:1.15rem; color:#f1f5f9;">Closest Pairs by High-Dimensional Cosine Similarity</h3>
+     <div class="table-box"><table>
+       <tr><th>Sentence A</th><th>Sentence B</th><th>Cosine Similarity</th></tr>${rows}
+     </table></div>`;
+}
+
+// WHAT THIS DOES: handles embedding the sentences and plotting them into 3D
+async function embedAndPlot() {
+  const status = document.getElementById("embed-status");
+  status.textContent = "";
+  const sentences = document.getElementById("sentences").value
+    .split("\n").map(s => s.trim()).filter(s => s !== "");
+
+  if (sentences.length < 4) {
+    status.textContent = "Please enter at least 4 sentences so PCA can compute a 3D subspace.";
+    return;
+  }
+
+  const vectors = sentences.map(spellingVector);
+
+  drawPlot(pcaTo3D(vectors), sentences);
+  showClosestPairs(vectors, sentences);
+  if (sentences.includes(userText)) showUserWordDetails(vectors, sentences);
+}
+
+
+// =====================================================================
+// PART 3: INTERACTIVE CUSTOM PHRASE TRIAL & 3D CONTROLS
+// =====================================================================
+
+// WHAT THIS DOES: tracks the custom word or phrase entered by the user
+let userText = null;
+
+// WHAT THIS DOES: allows testing a brand new sentence through the whole tokenizer -> embedding -> 3D plot pipeline
+async function addUserWord() {
+  const text = document.getElementById("new-word").value.trim();
+  if (text === "") return;
+
+  // Step 1: tokenize it using the vocabulary
+  if (vocab === null) buildVocabulary();
+  document.getElementById("new-word-output").innerHTML =
+    `<p class="stats" style="margin-top:16px;">Step 1 &mdash; Extracted Tokens and IDs:</p>${renderChips(encode(text))}
+     <div id="new-word-vector"></div>`;
+
+  // Step 2 & 3: append to sentence corpus and re-embed in 3D
+  const box = document.getElementById("sentences");
+  const lines = box.value.split("\n").map(s => s.trim());
+  if (!lines.includes(text)) box.value = box.value.trimEnd() + "\n" + text;
+  userText = text;
+  await embedAndPlot();
+}
+
+// WHAT THIS DOES: displays the exact numeric vector values and the nearest neighbors for the user's sentence
+function showUserWordDetails(vectors, sentences) {
+  const me = sentences.indexOf(userText);
+  const v = vectors[me];
+
+  // find nearest sentences by similarity
+  const others = sentences
+    .map((s, i) => ({ s, score: similarity(v, vectors[i]) }))
+    .filter((o, i) => i !== me)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3);
+
+  let rows = "";
+  for (const o of others) {
+    rows += `<tr><td>${escapeHtml(o.s)}</td><td style="color:#fb923c; font-weight:700;">${o.score.toFixed(3)}</td></tr>`;
+  }
+
+  document.getElementById("new-word-vector").innerHTML =
+    `<p class="stats">Step 2 &mdash; High-Dimensional Vector (First 8 of 64 dimensions shown):</p>
+     <code>[${v.slice(0, 8).map(x => x.toFixed(3)).join(", ")}, …]</code>
+     <p class="stats">Step 3 &mdash; Visualized as the <span style="color:#fb923c; font-weight:700;">Glowing Orange Point</span> in 3D Space. Nearest Semantic Neighbors:</p>
+     <div class="table-box"><table><tr><th>Neighbor Sentence</th><th>Similarity</th></tr>${rows}</table></div>`;
+}
+
+// WHAT THIS DOES: attaches click events and quick camera angle switches for the 3D plot
+document.getElementById("build-vocab-btn").addEventListener("click", buildVocabulary);
+document.getElementById("tokenize-btn").addEventListener("click", tokenizeSentence);
+
+// WHAT THIS DOES: resets training corpus to default Marvel text if user wants a clean slate
+document.getElementById("reset-corpus-btn").addEventListener("click", () => {
+  document.getElementById("corpus").value = 
+`Iron Man built a powerful suit of armor.
+Tony Stark is Iron Man.
+Captain America wields a vibranium shield!
+Thor summons thunder with Mjolnir.
+The Avengers assembled to fight Thanos.
+Spider-Man protects the streets of Queens.`;
+  buildVocabulary();
+});
+
+// WHAT THIS DOES: loads Gotham City Batman and Joker sentences
+document.getElementById("sample-batman-btn").addEventListener("click", () => {
+  document.getElementById("sentences").value = 
+`Batman patrols Gotham City from the dark shadows.
+The Dark Knight watches over Gotham from high rooftops.
+Bruce Wayne drives the armored Batmobile into the night.
+The Caped Crusader protects the innocent citizens of Gotham.
+The Joker unleashes chaos and dangerous laughter across the city.
+The Clown Prince of Crime loves playing twisted mind games.
+Joker spreads deadly laughing gas throughout Gotham Square.
+A sinister grin appeared on the pale face of the Joker.`;
+  embedAndPlot();
+});
+
+// WHAT THIS DOES: live slider listener to shrink the vocabulary on the fly
+document.getElementById("vocab-slider").addEventListener("input", function () {
+  applyVocabSize(Number(this.value));
+  if (document.getElementById("token-output").innerHTML !== "") tokenizeSentence();
+});
+
+document.getElementById("embed-btn").addEventListener("click", embedAndPlot);
+document.getElementById("add-word-btn").addEventListener("click", addUserWord);
+document.getElementById("new-word").addEventListener("keydown", e => { if (e.key === "Enter") addUserWord(); });
+
+// WHAT THIS DOES: provides quick camera orientation buttons for the 3D Plotly canvas
+document.getElementById("btn-view-top").addEventListener("click", () => {
+  Plotly.relayout("plot", { "scene.camera.eye": { x: 0.1, y: 0.1, z: 2.2 } });
+});
+document.getElementById("btn-view-side").addEventListener("click", () => {
+  Plotly.relayout("plot", { "scene.camera.eye": { x: 2.2, y: 0.1, z: 0.1 } });
+});
+document.getElementById("btn-reset-cam").addEventListener("click", () => {
+  Plotly.relayout("plot", { "scene.camera.eye": { x: 1.5, y: 1.5, z: 1.2 } });
+});
+
+// WHAT THIS DOES: automatically initializes vocabulary and 3D plot on initial page load
+window.addEventListener("DOMContentLoaded", () => {
+  buildVocabulary();
+  tokenizeSentence();
+  embedAndPlot();
+});
+</script>
+</body>
+</html>
